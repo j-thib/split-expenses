@@ -1,7 +1,7 @@
 [project]
-name = "splitwise"
-version = "0.1.0"
-description = "Add your description here"
+name = "split-expenses"
+version = "1.0.0"
+description = "A basic app to split expenses"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
