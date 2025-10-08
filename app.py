@@ -39,6 +39,9 @@ def parse_lines(t: str) -> dict[str, float]:
 if st.button("Compute"):
     try:
         spending = parse_lines(txt)
+        neg_names = [k for k, v in spending.items() if v < 0]
+        if neg_names:
+            raise ValueError(f"Negative values for {neg_names}")
         buf = StringIO()
         with redirect_stdout(buf):
             share_expenses(spending)
