@@ -2,5 +2,5 @@ An extremely basic app to faciliate expense-sharing among friends. Implements a 
 
 **Try it here 🚀:** [https://split-expenses.streamlit.app/](https://split-expenses.streamlit.app/)
 
-#### License
+### License
 MIT © 2025 Jesse Thibodeau
