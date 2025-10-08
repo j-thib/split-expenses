@@ -11,6 +11,7 @@ st.markdown("Paste one `name: amount` per line (commas or spaces also work).")
 
 default = """person 1: 1000
 person 2: 100
+person 3: 650
 """
 txt = st.text_area("Spending history", default, height=180)
 
