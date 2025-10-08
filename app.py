@@ -1,21 +1,42 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
 from io import StringIO
-from contextlib import redirect_stdout
-from share_expenses import share_expenses
+from share_expenses import greedy_pairing, describe_initial_balances, describe_transfers
 
-st.set_page_config(page_title="Share expenses", page_icon="💸", layout="centered")
+# page + small CSS tweak to reduce top padding
+st.set_page_config(page_title="Share expenses", page_icon="💸", layout="wide")
+st.markdown(
+    "<style>.block-container{padding-top:2rem;padding-bottom:2rem}</style>",
+    unsafe_allow_html=True,
+)
+
 st.title("💸 Share expenses")
 
-st.markdown("Paste one `name: amount` per line (commas or spaces also work).")
+# input sidebar
+with st.sidebar:
+    st.header("Spending input")
+    st.caption("Paste one `name: amount` per line (commas or spaces also work).")
 
-default = """person 1: 1000
-person 2: 100
-person 3: 650
-"""
-txt = st.text_area("Spending history", default, height=180)
+    default ="""
+    Dopey: 150
+    Sneezy: 209
+    Doc: 766
+    Grumpy: 475
+    Happy: 291
+    Bashful: 655
+    Sleepy: 398
+    Snow White: 444
+    """
 
-def parse_lines(t: str) -> dict[str, float]:
+    with st.form("input_form", clear_on_submit=False):
+        txt = st.text_area("Spending history", default, height=400, label_visibility="collapsed")
+        submitted = st.form_submit_button("Compute", type="primary")
+
+def parse_lines(t: str):
+    """
+    parses input field into spending log dictionary expected by pairing function
+    """
     data = {}
     for raw in t.splitlines():
         line = raw.strip()
@@ -37,15 +58,101 @@ def parse_lines(t: str) -> dict[str, float]:
         raise ValueError("No valid entries found.")
     return data
 
-if st.button("Compute"):
+# results
+if submitted:
     try:
         spending = parse_lines(txt)
         neg_names = [k for k, v in spending.items() if v < 0]
         if neg_names:
             raise ValueError(f"Negative values for {neg_names}")
-        buf = StringIO()
-        with redirect_stdout(buf):
-            share_expenses(spending)
-        st.code(buf.getvalue() or "(no output)", language="text")
+
+        targets, transfers, balances_cents = greedy_pairing(spending)
+
+        # summary numbers
+        names = list(spending.keys())
+        n = len(names)
+        total_spent = sum(spending.values())
+        nonzero_bal = sum(1 for b in balances_cents.values() if b != 0)
+        min_edges = max(0, nonzero_bal - 1)
+        per_person_avg = total_spent / n
+
+        target_vals = list(targets.values())
+        tgt_min, tgt_max = min(target_vals), max(target_vals)
+
+        # tables
+        people_rows = []
+        for name in names:
+            paid = spending[name]
+            target = targets[name]
+            bal = balances_cents[name] / 100.0
+            status = "is owed" if bal > 0 else ("owes" if bal < 0 else "settled")
+            people_rows.append(
+                {"Name": name, "Paid": paid, "Target": target, "Balance": bal, "Status": status}
+            )
+        people_df = pd.DataFrame(people_rows).sort_values(by=["Status", "Balance"])
+
+        transfers_rows = [{"Payer": p, "Receiver": r, "Amount": amt} for (p, r, amt) in transfers]
+        transfers_df = pd.DataFrame(transfers_rows)
+
+        # text report
+        text = StringIO()
+        text.write("Target spend per person (average): ")
+        text.write(f"${per_person_avg:,.2f}\n")
+        if tgt_min != tgt_max:
+            text.write(f"Targets range due to rounding: ${tgt_min:,.2f} .. ${tgt_max:,.2f}\n")
+        text.write("\nInitial balances:\n")
+        text.write(describe_initial_balances(balances_cents))
+        text.write("\n\nWho pays whom:\n")
+        text.write(describe_transfers(transfers))
+        text_report = text.getvalue()
+
+        # layout: left panel -> summary ; right panel -> details
+        left, right = st.columns([1, 2], gap="small")
+
+        with left:
+            st.subheader("📊 Summary")
+            st.metric("Participants", n)
+            st.metric("Total spent", f"${total_spent:,.2f}")
+            st.metric("Per-person (avg)", f"${per_person_avg:,.2f}")
+            if tgt_min != tgt_max:
+                st.caption(f"Targets range: ${tgt_min:,.2f} – ${tgt_max:,.2f} (pennies)")
+            st.metric("People who owe", sum(b < 0 for b in balances_cents.values()))
+            st.metric("People owed", sum(b > 0 for b in balances_cents.values()))
+            st.metric("Minimal transactions", min_edges)
+
+            st.download_button(
+                "⬇️ Download settlement instructions (.txt)",
+                data=text_report,
+                file_name="settlement_instructions.txt",
+                mime="text/plain",
+            )
+
+        with right:
+            st.subheader("🧾 Details")
+            tabs = st.tabs(["Initial balances", "Transfers", "Text output"])
+            with tabs[0]:
+                st.caption("If your balance is positive, you're owed money. If your balance is negative, check the transfers tab!")
+                st.dataframe(
+                    people_df.drop(columns=['Target']).style.format(
+                        {"Paid": "${:,.2f}", "Balance": "${:,.2f}"}
+                    ),
+                    width='content',
+                    hide_index=True,
+                )
+            with tabs[1]:
+                st.caption("Here's a good way for everyone to settle up!")
+                if transfers_df.empty:
+                    st.info("No transfers needed. Everyone is already settled.")
+                else:
+                    st.dataframe(
+                        transfers_df.style.format({"Amount": "${:,.2f}"}),
+                        width='content',
+                        hide_index=True,
+                    )
+            with tabs[2]:
+                st.code(text_report, language="text")
+
     except Exception as e:
         st.error(str(e))
+else:
+    st.info("Add entries on the left and click **Compute**.")
