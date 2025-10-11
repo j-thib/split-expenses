@@ -3,3 +3,7 @@ __pycache__/
 
 # Virtual environments
 .venv
+
+# Streamlit
+.streamlit/secrets.toml
+shared_expense_log.json

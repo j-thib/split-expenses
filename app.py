@@ -2,23 +2,53 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 from io import StringIO
+import json, os
+
 from share_expenses import greedy_pairing, describe_initial_balances, describe_transfers
 
-# page + small CSS tweak to reduce top padding
-st.set_page_config(page_title="Share expenses", page_icon="💸", layout="wide")
-st.markdown(
-    "<style>.block-container{padding-top:2rem;padding-bottom:2rem}</style>",
-    unsafe_allow_html=True,
-)
+# ----------------------- Shared persistence -----------------------
+DATA_FILE = "shared_expense_log.json"
 
+def load_log() -> str:
+    """Load the shared text from disk (or return empty)."""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r") as f:
+                return json.load(f).get("text", "")
+        except Exception:
+            return ""
+    return ""
+
+def save_log(text: str):
+    """Save current text to disk so everyone sees the same."""
+    with open(DATA_FILE, "w") as f:
+        json.dump({"text": text}, f)
+
+# ----------------------- Password gate -----------------------
+st.set_page_config(page_title="Share expenses", page_icon="💸", layout="wide")
+st.markdown("<style>.block-container{padding-top:2rem;padding-bottom:2rem}</style>", unsafe_allow_html=True)
 st.title("💸 Share expenses")
 
-# input sidebar
+if "auth_ok" not in st.session_state:
+    st.session_state.auth_ok = False
+
+if not st.session_state.auth_ok:
+    st.text_input("Enter group password", type="password", key="password")
+    if st.button("Unlock"):
+        if st.session_state.password == st.secrets["app"]["password"]:
+            st.session_state.auth_ok = True
+            st.rerun()
+        else:
+            st.error("Wrong password.")
+    st.stop()
+
+# ----------------------- Input sidebar -----------------------
 with st.sidebar:
     st.header("Spending input")
     st.caption("Paste one `name: amount` per line (commas or spaces also work).")
 
-    default ="""
+    # load last shared log as default
+    default = load_log() or """
     Dopey: 150
     Sneezy: 209
     Doc: 766
@@ -33,10 +63,12 @@ with st.sidebar:
         txt = st.text_area("Spending history", default, height=400, label_visibility="collapsed")
         submitted = st.form_submit_button("Compute", type="primary")
 
+    # Always save any edits, even if not computed yet
+    if txt.strip():
+        save_log(txt)
+
+# ----------------------- Parser -----------------------
 def parse_lines(t: str):
-    """
-    parses input field into spending log dictionary expected by pairing function
-    """
     data = {}
     for raw in t.splitlines():
         line = raw.strip()
@@ -58,7 +90,7 @@ def parse_lines(t: str):
         raise ValueError("No valid entries found.")
     return data
 
-# results
+# ----------------------- Results -----------------------
 if submitted:
     try:
         spending = parse_lines(txt)
@@ -119,7 +151,6 @@ if submitted:
             st.metric("People who owe", sum(b < 0 for b in balances_cents.values()))
             st.metric("People owed", sum(b > 0 for b in balances_cents.values()))
             st.metric("Minimal transactions", min_edges)
-
             st.download_button(
                 "⬇️ Download settlement instructions (.txt)",
                 data=text_report,
