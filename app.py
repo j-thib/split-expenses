@@ -3,26 +3,31 @@ import numpy as np
 import pandas as pd
 from io import StringIO
 import json, os
+from supabase import create_client
 
 from share_expenses import greedy_pairing, describe_initial_balances, describe_transfers
 
 # ----------------------- Shared persistence -----------------------
 DATA_FILE = "shared_expense_log.json"
 
+supabase = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
+
 def load_log() -> str:
-    """Load the shared text from disk (or return empty)."""
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r") as f:
-                return json.load(f).get("text", "")
-        except Exception:
-            return ""
+    """Load shared log from Supabase (persisted)."""
+    try:
+        res = supabase.table("shared_expense_log").select("text").eq("id", "global").execute()
+        if res.data:
+            return res.data[0]["text"]
+    except Exception as e:
+        st.warning(f"Could not load log: {e}")
     return ""
 
 def save_log(text: str):
-    """Save current text to disk so everyone sees the same."""
-    with open(DATA_FILE, "w") as f:
-        json.dump({"text": text}, f)
+    """Save shared log to Supabase (persistent)."""
+    try:
+        supabase.table("shared_expense_log").upsert({"id": "global", "text": text}).execute()
+    except Exception as e:
+        st.warning(f"Could not save log: {e}")
 
 # ----------------------- Password gate -----------------------
 st.set_page_config(page_title="Share expenses", page_icon="💸", layout="wide")
