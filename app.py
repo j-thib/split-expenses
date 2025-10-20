@@ -22,7 +22,6 @@ def load_expenses():
         res = supabase.table("shared_expense_log").select("text").eq("id", "global").execute()
         if res.data and res.data[0]["text"]:
             data = json.loads(res.data[0]["text"])
-            # ensure backward compatibility
             for e in data:
                 e.setdefault("payer", "")
                 e.setdefault("people", [])
@@ -61,23 +60,19 @@ if "expenses" not in st.session_state:
 # ----------------------- PARTICIPANT MANAGEMENT -----------------------
 st.sidebar.header("👥 Trip Participants")
 
-# Build participant list dynamically from expenses
 if "participants" not in st.session_state:
     known = set()
     for e in st.session_state.expenses:
         known.update(e.get("people", []))
         if e.get("payer"):
             known.add(e["payer"])
-    # start empty if none exist yet
     st.session_state.participants = sorted(list(known))
 
-# Show list
 if st.session_state.participants:
     st.sidebar.write(", ".join(st.session_state.participants))
 else:
     st.sidebar.info("No participants yet. Add at least one below!")
 
-# Add person form
 with st.sidebar.form("add_person_form", clear_on_submit=True):
     new_person = st.text_input("Add a new person", placeholder="Name")
     add_person = st.form_submit_button("➕ Add person")
@@ -117,15 +112,37 @@ else:
         st.success(f"Added {desc} (${amount:.2f}) paid by {payer} → {', '.join(selected)}")
         st.rerun()
 
-# ----------------------- CURRENT EXPENSES -----------------------
+# ----------------------- CURRENT EXPENSES (with delete buttons) -----------------------
 if st.session_state.expenses:
     st.sidebar.markdown("### Current expenses")
-    for e in st.session_state.expenses:
+
+    # create a copy to iterate safely
+    to_delete = None
+    for idx, e in enumerate(st.session_state.expenses):
         payer = e.get("payer", "unknown")
-        st.sidebar.write(
-            f"{e.get('desc','(no description)')}: ${e.get('amount',0):.2f} "
-            f"(paid by {payer}) → {', '.join(e.get('people', []))}"
-        )
+        desc = e.get("desc", "(no description)")
+        participants = ", ".join(e.get("people", []))
+        amount = e.get("amount", 0)
+
+        # make tighter inline columns
+        c1, c2 = st.sidebar.columns([9, 1])
+        with c1:
+            st.markdown(
+                f"<span style='font-weight:600'>{desc}</span> — ${amount:.2f} "
+                f"(paid by {payer}) → {participants}",
+                unsafe_allow_html=True,
+            )
+        with c2:
+            if st.button("❌", key=f"del_{idx}", help=f"Delete {desc}"):
+                to_delete = idx
+
+
+    if to_delete is not None:
+        del st.session_state.expenses[to_delete]
+        save_expenses(st.session_state.expenses)
+        st.rerun()
+
+    st.sidebar.markdown("---")
     if st.sidebar.button("🗑 Clear all"):
         st.session_state.expenses.clear()
         save_expenses([])
@@ -185,7 +202,6 @@ if spending:
         text.write(describe_transfers(transfers))
         text_report = text.getvalue()
 
-        # Layout
         left, right = st.columns([1, 2], gap="small")
 
         with left:
@@ -210,7 +226,7 @@ if spending:
                 st.caption("Positive balance → owed money; negative → owes money.")
                 st.dataframe(
                     people_df.style.format({"Paid": "${:,.2f}", "Balance": "${:,.2f}"}),
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True,
                 )
             with tabs[1]:
@@ -219,7 +235,7 @@ if spending:
                 else:
                     st.dataframe(
                         transfers_df.style.format({"Amount": "${:,.2f}"}),
-                        use_container_width=True,
+                        width='stretch',
                         hide_index=True,
                     )
             with tabs[2]:
