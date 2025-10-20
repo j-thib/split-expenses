@@ -195,7 +195,6 @@ if spending:
         transfers_df = pd.DataFrame(transfers_rows)
 
         text = StringIO()
-        text.write(f"Target spend per person: ${per_person_avg:,.2f}\n\n")
         text.write("Initial balances:\n")
         text.write(describe_initial_balances(balances_cents))
         text.write("\n\nWho pays whom:\n")
