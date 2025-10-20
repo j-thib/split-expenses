@@ -1,39 +1,46 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
+import numpy as np
 from io import StringIO
-import json, os
+from collections import defaultdict
+import json
 from supabase import create_client
 
 from share_expenses import greedy_pairing, describe_initial_balances, describe_transfers
 
-# ----------------------- Shared persistence -----------------------
-DATA_FILE = "shared_expense_log.json"
-
-supabase = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
-
-def load_log() -> str:
-    """Load shared log from Supabase (persisted)."""
-    try:
-        res = supabase.table("shared_expense_log").select("text").eq("id", "global").execute()
-        if res.data:
-            return res.data[0]["text"]
-    except Exception as e:
-        st.warning(f"Could not load log: {e}")
-    return ""
-
-def save_log(text: str):
-    """Save shared log to Supabase (persistent)."""
-    try:
-        supabase.table("shared_expense_log").upsert({"id": "global", "text": text}).execute()
-    except Exception as e:
-        st.warning(f"Could not save log: {e}")
-
-# ----------------------- Password gate -----------------------
+# ----------------------- CONFIG -----------------------
 st.set_page_config(page_title="Share expenses", page_icon="💸", layout="wide")
 st.markdown("<style>.block-container{padding-top:2rem;padding-bottom:2rem}</style>", unsafe_allow_html=True)
 st.title("💸 Share expenses")
 
+# ----------------------- SUPABASE CONNECTION -----------------------
+supabase = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
+
+def load_expenses():
+    """Load all expenses (persisted) from Supabase."""
+    try:
+        res = supabase.table("shared_expense_log").select("text").eq("id", "global").execute()
+        if res.data and res.data[0]["text"]:
+            data = json.loads(res.data[0]["text"])
+            # ensure backward compatibility
+            for e in data:
+                e.setdefault("payer", "")
+                e.setdefault("people", [])
+            return data
+    except Exception as e:
+        st.warning(f"Could not load log: {e}")
+    return []
+
+def save_expenses(expenses):
+    """Save expense list persistently."""
+    try:
+        supabase.table("shared_expense_log").upsert(
+            {"id": "global", "text": json.dumps(expenses)}
+        ).execute()
+    except Exception as e:
+        st.warning(f"Could not save log: {e}")
+
+# ----------------------- PASSWORD GATE -----------------------
 if "auth_ok" not in st.session_state:
     st.session_state.auth_ok = False
 
@@ -47,103 +54,138 @@ if not st.session_state.auth_ok:
             st.error("Wrong password.")
     st.stop()
 
-# ----------------------- Input sidebar -----------------------
-with st.sidebar:
-    st.header("Spending input")
-    st.caption("Paste one `name: amount` per line (commas or spaces also work).")
+# ----------------------- LOAD DATA -----------------------
+if "expenses" not in st.session_state:
+    st.session_state.expenses = load_expenses()
 
-    # load last shared log as default
-    default = load_log() or """
-    Dopey: 150
-    Sneezy: 209
-    Doc: 766
-    Grumpy: 475
-    Happy: 291
-    Bashful: 655
-    Sleepy: 398
-    Snow White: 444
-    """
+# ----------------------- PARTICIPANT MANAGEMENT -----------------------
+st.sidebar.header("👥 Trip Participants")
 
-    with st.form("input_form", clear_on_submit=False):
-        txt = st.text_area("Spending history", default, height=400, label_visibility="collapsed")
-        submitted = st.form_submit_button("Compute", type="primary")
+# Build participant list dynamically from expenses
+if "participants" not in st.session_state:
+    known = set()
+    for e in st.session_state.expenses:
+        known.update(e.get("people", []))
+        if e.get("payer"):
+            known.add(e["payer"])
+    # start empty if none exist yet
+    st.session_state.participants = sorted(list(known))
 
-    # Always save any edits, even if not computed yet
-    if txt.strip():
-        save_log(txt)
+# Show list
+if st.session_state.participants:
+    st.sidebar.write(", ".join(st.session_state.participants))
+else:
+    st.sidebar.info("No participants yet. Add at least one below!")
 
-# ----------------------- Parser -----------------------
-def parse_lines(t: str):
-    data = {}
-    for raw in t.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        if ":" in line:
-            k, v = line.split(":", 1)
-        elif "," in line:
-            k, v = line.split(",", 1)
+# Add person form
+with st.sidebar.form("add_person_form", clear_on_submit=True):
+    new_person = st.text_input("Add a new person", placeholder="Name")
+    add_person = st.form_submit_button("➕ Add person")
+    if add_person and new_person.strip():
+        p = new_person.strip()
+        if p not in st.session_state.participants:
+            st.session_state.participants.append(p)
+            st.session_state.participants.sort()
+            st.success(f"Added {p} to participants")
+            st.rerun()
         else:
-            parts = line.split()
-            if len(parts) != 2:
-                raise ValueError(f"Bad line: {line!r}. Expected 'name: amount'")
-            k, v = parts
-        k = k.strip()
-        v = float(v.strip())
-        data[k] = data.get(k, 0.0) + v
-    if not data:
-        raise ValueError("No valid entries found.")
-    return data
+            st.warning(f"{p} already exists")
 
-# ----------------------- Results -----------------------
-if submitted:
+# ----------------------- EXPENSE ENTRY -----------------------
+st.sidebar.markdown("---")
+st.sidebar.header("🧾 Add an expense")
+
+if not st.session_state.participants:
+    st.sidebar.warning("Add participants before logging expenses.")
+else:
+    with st.sidebar.form("add_expense", clear_on_submit=True):
+        desc = st.text_input("Description", placeholder="Dinner, Hotel, etc.")
+        amount = st.number_input("Amount ($)", min_value=0.0, step=0.01)
+        selected = st.multiselect(
+            "Who was involved?",
+            st.session_state.participants,
+            default=st.session_state.participants,
+        )
+        payer = st.selectbox("Who paid?", st.session_state.participants)
+        add = st.form_submit_button("➕ Add expense")
+
+    if add and desc and amount > 0 and selected and payer:
+        st.session_state.expenses.append(
+            {"desc": desc, "amount": amount, "people": selected, "payer": payer}
+        )
+        save_expenses(st.session_state.expenses)
+        st.success(f"Added {desc} (${amount:.2f}) paid by {payer} → {', '.join(selected)}")
+        st.rerun()
+
+# ----------------------- CURRENT EXPENSES -----------------------
+if st.session_state.expenses:
+    st.sidebar.markdown("### Current expenses")
+    for e in st.session_state.expenses:
+        payer = e.get("payer", "unknown")
+        st.sidebar.write(
+            f"{e.get('desc','(no description)')}: ${e.get('amount',0):.2f} "
+            f"(paid by {payer}) → {', '.join(e.get('people', []))}"
+        )
+    if st.sidebar.button("🗑 Clear all"):
+        st.session_state.expenses.clear()
+        save_expenses([])
+        st.rerun()
+else:
+    if st.session_state.participants:
+        st.sidebar.info("No expenses yet. Add one above.")
+    else:
+        st.sidebar.info("Add participants first to begin logging expenses.")
+
+# ----------------------- COMPUTE BALANCES -----------------------
+def compute_balances(expenses):
+    """Each participant's net (paid - share)."""
+    balances = defaultdict(float)
+    for e in expenses:
+        amount = e["amount"]
+        participants = e["people"]
+        payer = e.get("payer", "")
+        if not participants or not payer:
+            continue
+        share = amount / len(participants)
+        for p in participants:
+            balances[p] -= share
+        balances[payer] += amount
+    return dict(balances)
+
+spending = compute_balances(st.session_state.expenses)
+
+# ----------------------- RESULTS -----------------------
+if spending:
     try:
-        spending = parse_lines(txt)
-        neg_names = [k for k, v in spending.items() if v < 0]
-        if neg_names:
-            raise ValueError(f"Negative values for {neg_names}")
-
         targets, transfers, balances_cents = greedy_pairing(spending)
 
-        # summary numbers
         names = list(spending.keys())
         n = len(names)
-        total_spent = sum(spending.values())
+        total_spent = sum(e["amount"] for e in st.session_state.expenses)
         nonzero_bal = sum(1 for b in balances_cents.values() if b != 0)
         min_edges = max(0, nonzero_bal - 1)
         per_person_avg = total_spent / n
 
-        target_vals = list(targets.values())
-        tgt_min, tgt_max = min(target_vals), max(target_vals)
-
-        # tables
         people_rows = []
         for name in names:
-            paid = spending[name]
-            target = targets[name]
             bal = balances_cents[name] / 100.0
+            paid = sum(e["amount"] for e in st.session_state.expenses if e.get("payer") == name)
             status = "is owed" if bal > 0 else ("owes" if bal < 0 else "settled")
-            people_rows.append(
-                {"Name": name, "Paid": paid, "Target": target, "Balance": bal, "Status": status}
-            )
+            people_rows.append({"Name": name, "Paid": paid, "Balance": bal, "Status": status})
         people_df = pd.DataFrame(people_rows).sort_values(by=["Status", "Balance"])
 
         transfers_rows = [{"Payer": p, "Receiver": r, "Amount": amt} for (p, r, amt) in transfers]
         transfers_df = pd.DataFrame(transfers_rows)
 
-        # text report
         text = StringIO()
-        text.write("Target spend per person (average): ")
-        text.write(f"${per_person_avg:,.2f}\n")
-        if tgt_min != tgt_max:
-            text.write(f"Targets range due to rounding: ${tgt_min:,.2f} .. ${tgt_max:,.2f}\n")
-        text.write("\nInitial balances:\n")
+        text.write(f"Target spend per person: ${per_person_avg:,.2f}\n\n")
+        text.write("Initial balances:\n")
         text.write(describe_initial_balances(balances_cents))
         text.write("\n\nWho pays whom:\n")
         text.write(describe_transfers(transfers))
         text_report = text.getvalue()
 
-        # layout: left panel -> summary ; right panel -> details
+        # Layout
         left, right = st.columns([1, 2], gap="small")
 
         with left:
@@ -151,8 +193,6 @@ if submitted:
             st.metric("Participants", n)
             st.metric("Total spent", f"${total_spent:,.2f}")
             st.metric("Per-person (avg)", f"${per_person_avg:,.2f}")
-            if tgt_min != tgt_max:
-                st.caption(f"Targets range: ${tgt_min:,.2f} – ${tgt_max:,.2f} (pennies)")
             st.metric("People who owe", sum(b < 0 for b in balances_cents.values()))
             st.metric("People owed", sum(b > 0 for b in balances_cents.values()))
             st.metric("Minimal transactions", min_edges)
@@ -165,24 +205,21 @@ if submitted:
 
         with right:
             st.subheader("🧾 Details")
-            tabs = st.tabs(["Initial balances", "Transfers", "Text output"])
+            tabs = st.tabs(["Balances", "Transfers", "Text output"])
             with tabs[0]:
-                st.caption("If your balance is positive, you're owed money. If your balance is negative, check the transfers tab!")
+                st.caption("Positive balance → owed money; negative → owes money.")
                 st.dataframe(
-                    people_df.drop(columns=['Target']).style.format(
-                        {"Paid": "${:,.2f}", "Balance": "${:,.2f}"}
-                    ),
-                    width='content',
+                    people_df.style.format({"Paid": "${:,.2f}", "Balance": "${:,.2f}"}),
+                    use_container_width=True,
                     hide_index=True,
                 )
             with tabs[1]:
-                st.caption("Here's a good way for everyone to settle up!")
                 if transfers_df.empty:
-                    st.info("No transfers needed. Everyone is already settled.")
+                    st.info("No transfers needed.")
                 else:
                     st.dataframe(
                         transfers_df.style.format({"Amount": "${:,.2f}"}),
-                        width='content',
+                        use_container_width=True,
                         hide_index=True,
                     )
             with tabs[2]:
@@ -191,4 +228,4 @@ if submitted:
     except Exception as e:
         st.error(str(e))
 else:
-    st.info("Add entries on the left and click **Compute**.")
+    st.info("Add participants and expenses on the left to begin.")
