@@ -8,10 +8,12 @@ from supabase import create_client
 
 from share_expenses import greedy_pairing, describe_initial_balances, describe_transfers
 
+
 # ----------------------- CONFIG -----------------------
 st.set_page_config(page_title="Share expenses", page_icon="💸", layout="wide")
 st.markdown("<style>.block-container{padding-top:2rem;padding-bottom:2rem}</style>", unsafe_allow_html=True)
 st.title("💸 Share expenses")
+
 
 # ----------------------- SUPABASE CONNECTION -----------------------
 supabase = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
@@ -39,6 +41,7 @@ def save_expenses(expenses):
     except Exception as e:
         st.warning(f"Could not save log: {e}")
 
+
 # ----------------------- PASSWORD GATE -----------------------
 if "auth_ok" not in st.session_state:
     st.session_state.auth_ok = False
@@ -57,6 +60,7 @@ if not st.session_state.auth_ok:
 if "expenses" not in st.session_state:
     st.session_state.expenses = load_expenses()
 
+
 # ----------------------- PARTICIPANT MANAGEMENT -----------------------
 st.sidebar.header("👥 Trip Participants")
 
@@ -68,10 +72,6 @@ if "participants" not in st.session_state:
             known.add(e["payer"])
     st.session_state.participants = sorted(list(known))
 
-if st.session_state.participants:
-    st.sidebar.write(", ".join(st.session_state.participants))
-else:
-    st.sidebar.info("No participants yet. Add at least one below!")
 
 with st.sidebar.form("add_person_form", clear_on_submit=True):
     new_person = st.text_input("Add a new person", placeholder="Name")
@@ -85,6 +85,34 @@ with st.sidebar.form("add_person_form", clear_on_submit=True):
             st.rerun()
         else:
             st.warning(f"{p} already exists")
+
+
+if st.session_state.participants:
+    st.sidebar.markdown("### Current participants")
+
+    st.sidebar.write(", ".join(st.session_state.participants))
+
+    with st.sidebar.expander("⚙️ Manage participants"):
+        to_remove = st.selectbox(
+            "Select a participant to remove",
+            ["(none)"] + st.session_state.participants,
+            index=0,
+        )
+        if st.button("❌ Remove selected"):
+            if to_remove != "(none)":
+                involved = any(
+                    (to_remove == e.get("payer")) or (to_remove in e.get("people", []))
+                    for e in st.session_state.expenses
+                )
+                if involved:
+                    st.warning(f"Cannot remove {to_remove}: participant is involved in existing expenses.")
+                else:
+                    st.session_state.participants.remove(to_remove)
+                    st.success(f"Removed {to_remove} from participants.")
+                    st.rerun()
+else:
+    st.sidebar.info("No participants yet. Add at least one below!")
+
 
 # ----------------------- EXPENSE ENTRY -----------------------
 st.sidebar.markdown("---")
@@ -112,7 +140,7 @@ else:
         st.success(f"Added {desc} (${amount:.2f}) paid by {payer} → {', '.join(selected)}")
         st.rerun()
 
-# ----------------------- CURRENT EXPENSES (with delete buttons) -----------------------
+# ----------------------- CURRENT EXPENSES -----------------------
 if st.session_state.expenses:
     st.sidebar.markdown("### Current expenses")
 
@@ -153,6 +181,7 @@ else:
     else:
         st.sidebar.info("Add participants first to begin logging expenses.")
 
+
 # ----------------------- COMPUTE BALANCES -----------------------
 def compute_balances(expenses):
     """Each participant's net (paid - share)."""
@@ -170,6 +199,7 @@ def compute_balances(expenses):
     return dict(balances)
 
 spending = compute_balances(st.session_state.expenses)
+
 
 # ----------------------- RESULTS -----------------------
 if spending:
