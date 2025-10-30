@@ -7,3 +7,4 @@ __pycache__/
 # Streamlit
 .streamlit/secrets.toml
 shared_expense_log.json
+.DS_Store
