@@ -50,9 +50,6 @@ export default function AuthPage() {
           <div className="inline-flex">
             <NicklWordmark size={56} />
           </div>
-          <p className="mt-3 text-sm text-muted">
-            Split things, down to the cent.
-          </p>
         </div>
 
         <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
