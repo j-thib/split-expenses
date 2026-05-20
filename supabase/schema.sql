@@ -1,5 +1,5 @@
 -- ============================================================================
--- SplitFree schema
+-- Nickl schema
 --
 -- Apply with: psql "$SUPABASE_DB_URL" -f supabase/schema.sql
 -- (or paste into the Supabase SQL editor)

@@ -83,7 +83,7 @@ export default function GroupListPage({ onSelectGroup }: GroupListPageProps) {
   return (
     <main className="min-h-screen bg-app">
       <header className="px-4 pt-6 pb-4 max-w-[480px] mx-auto flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-brand">SplitFree</h1>
+        <h1 className="text-2xl font-bold text-brand">Nickl</h1>
         <button
           type="button"
           onClick={() => signOut()}

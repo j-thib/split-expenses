@@ -49,9 +49,9 @@ export default function AuthPage() {
           <div className="text-5xl mb-2" aria-hidden="true">
             💸
           </div>
-          <h1 className="text-3xl font-bold text-brand">SplitFree</h1>
+          <h1 className="text-3xl font-bold text-brand">Nickl</h1>
           <p className="mt-1 text-sm text-muted">
-            Split expenses with friends. Always free.
+            Split expenses with friends.
           </p>
         </div>
 

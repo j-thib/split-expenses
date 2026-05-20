@@ -1,6 +1,6 @@
-# SplitFree
+# Nickl
 
-> Split expenses with friends. Always free.
+> Split expenses with friends.
 
 A free, installable Splitwise alternative built as a Progressive Web App. Create a group, share an invite code, log who paid for what, and let the greedy-pairing algorithm settle everyone up in at most `k-1` transfers for `k` people.
 
@@ -43,7 +43,12 @@ legacy/          The original Python/Streamlit version
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the project dashboard, open **SQL Editor → New query** and paste the contents of [`supabase/schema.sql`](./supabase/schema.sql). Run it. (Idempotent — safe to re-run after schema edits.)
 3. In **Authentication → Providers**, enable **Email**. If you want frictionless local testing, also toggle off "Confirm email" while developing.
-4. In **Project Settings → API**, copy the **Project URL** and the **anon public** key.
+4. In **Authentication → URL Configuration**, set:
+   - **Site URL**: `https://nickl.vercel.app` (or whatever your prod URL is)
+   - **Additional Redirect URLs**: add `http://localhost:5173` for local dev, plus any preview-deploy URLs (e.g. `https://*.vercel.app`)
+
+   Without these, Supabase will reject sign-up confirmation links and password-reset redirects.
+5. In **Project Settings → API**, copy the **Project URL** and the **anon public** key.
 
 ### 2. Environment variables
 

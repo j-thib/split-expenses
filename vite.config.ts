@@ -16,9 +16,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'SplitFree',
-        short_name: 'SplitFree',
-        description: 'Split expenses with friends. Always free.',
+        name: 'Nickl',
+        short_name: 'Nickl',
+        description: 'Split expenses with friends.',
         theme_color: '#2D6A4F',
         background_color: '#FAFAF8',
         display: 'standalone',
