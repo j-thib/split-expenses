@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import Sheet from '../components/Sheet'
 import { CenteredSpinner } from '../components/Spinner'
 import { NicklWordmark } from '../components/Wordmark'
+import InstallBanner from '../components/InstallBanner'
 import type { Group } from '../lib/database.types'
 
 type SheetMode = null | 'new' | 'join'
@@ -161,6 +162,8 @@ export default function GroupListPage({ onSelectGroup }: GroupListPageProps) {
           onJoined={handleJoined}
         />
       )}
+
+      <InstallBanner />
     </main>
   )
 }
