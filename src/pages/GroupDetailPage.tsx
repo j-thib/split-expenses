@@ -15,6 +15,10 @@ import type {
 
 type ExpenseWithSplits = Expense & { splits: ExpenseSplit[] }
 type TabKey = 'expenses' | 'settle'
+type SheetState =
+  | { mode: 'new' }
+  | { mode: 'edit'; expense: ExpenseWithSplits }
+  | null
 
 type Props = {
   group: Group
@@ -34,7 +38,7 @@ export default function GroupDetailPage({
   const [expenses, setExpenses] = useState<ExpenseWithSplits[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [sheetState, setSheetState] = useState<SheetState>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -89,10 +93,15 @@ export default function GroupDetailPage({
     showToast('Expense deleted')
   }
 
-  function handleExpenseAdded(expense: ExpenseWithSplits) {
-    setExpenses((prev) => [expense, ...prev])
-    setSheetOpen(false)
-    showToast('Expense added')
+  function handleExpenseSaved(expense: ExpenseWithSplits) {
+    const isEdit = sheetState?.mode === 'edit'
+    setExpenses((prev) =>
+      isEdit
+        ? prev.map((e) => (e.id === expense.id ? expense : e))
+        : [expense, ...prev],
+    )
+    setSheetState(null)
+    showToast(isEdit ? 'Expense updated' : 'Expense added')
   }
 
   return (
@@ -119,6 +128,7 @@ export default function GroupDetailPage({
             expenses={expenses}
             nameById={nameById}
             currentUserId={user?.id}
+            onEdit={(expense) => setSheetState({ mode: 'edit', expense })}
             onDelete={handleDelete}
           />
         ) : (
@@ -133,7 +143,7 @@ export default function GroupDetailPage({
       {tab === 'expenses' && !loading && (
         <button
           type="button"
-          onClick={() => setSheetOpen(true)}
+          onClick={() => setSheetState({ mode: 'new' })}
           aria-label="Add expense"
           className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-brand text-white text-3xl shadow-lg hover:bg-brand-dark transition flex items-center justify-center"
         >
@@ -141,13 +151,14 @@ export default function GroupDetailPage({
         </button>
       )}
 
-      {sheetOpen && (
-        <NewExpenseSheet
+      {sheetState && (
+        <ExpenseSheet
           group={group}
           members={members}
           currentUserId={user?.id ?? ''}
-          onClose={() => setSheetOpen(false)}
-          onAdded={handleExpenseAdded}
+          existing={sheetState.mode === 'edit' ? sheetState.expense : null}
+          onClose={() => setSheetState(null)}
+          onSaved={handleExpenseSaved}
         />
       )}
     </main>
@@ -255,11 +266,13 @@ function ExpensesTab({
   expenses,
   nameById,
   currentUserId,
+  onEdit,
   onDelete,
 }: {
   expenses: ExpenseWithSplits[]
   nameById: Record<string, string>
   currentUserId: string | undefined
+  onEdit: (expense: ExpenseWithSplits) => void
   onDelete: (id: string) => void
 }) {
   if (expenses.length === 0) {
@@ -274,6 +287,7 @@ function ExpensesTab({
           expense={e}
           nameById={nameById}
           currentUserId={currentUserId}
+          onEdit={onEdit}
           onDelete={onDelete}
         />
       ))}
@@ -311,11 +325,13 @@ function ExpenseCard({
   expense,
   nameById,
   currentUserId,
+  onEdit,
   onDelete,
 }: {
   expense: ExpenseWithSplits
   nameById: Record<string, string>
   currentUserId: string | undefined
+  onEdit: (expense: ExpenseWithSplits) => void
   onDelete: (id: string) => void
 }) {
   const isMine = expense.created_by === currentUserId
@@ -323,39 +339,65 @@ function ExpenseCard({
     .map((s) => nameById[s.user_id] ?? 'Unknown')
     .join(', ')
 
-  return (
-    <li className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-gray-900 truncate">
-            {expense.description}
-          </div>
+  const body = (
+    <div className="flex items-start gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-gray-900 truncate">
+          {expense.description}
+        </div>
+        <div className="mt-1 text-xs text-muted">
+          Paid by{' '}
+          <span className="font-medium text-gray-700">
+            {nameById[expense.paid_by] ?? 'Unknown'}
+          </span>
+        </div>
+        {expense.splits.length > 0 && (
           <div className="mt-1 text-xs text-muted">
-            Paid by{' '}
-            <span className="font-medium text-gray-700">
-              {nameById[expense.paid_by] ?? 'Unknown'}
-            </span>
+            Split between {splitLabels}
           </div>
-          {expense.splits.length > 0 && (
-            <div className="mt-1 text-xs text-muted">
-              Split between {splitLabels}
-            </div>
-          )}
+        )}
+      </div>
+      <div className="text-right shrink-0">
+        <div className="font-semibold text-gray-900">
+          {formatUSD(Number(expense.amount))}
         </div>
-        <div className="text-right shrink-0">
-          <div className="font-semibold text-gray-900">
-            {formatUSD(Number(expense.amount))}
-          </div>
-          {isMine && (
-            <button
-              type="button"
-              onClick={() => onDelete(expense.id)}
-              className="mt-1 text-xs text-red-600 hover:text-red-700 px-2 py-1"
-            >
-              Delete
-            </button>
-          )}
-        </div>
+        {isMine && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(expense.id)
+            }}
+            className="mt-1 text-xs text-red-600 hover:text-red-700 px-2 py-1"
+          >
+            Delete
+          </button>
+        )}
+      </div>
+    </div>
+  )
+
+  const baseClass = 'bg-white rounded-xl border border-gray-100 shadow-sm p-4'
+
+  if (!isMine) {
+    return <li className={baseClass}>{body}</li>
+  }
+
+  return (
+    <li>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onEdit(expense)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onEdit(expense)
+          }
+        }}
+        className={`${baseClass} cursor-pointer hover:border-brand/40 transition focus:outline-none focus:ring-2 focus:ring-brand`}
+      >
+        {body}
       </div>
     </li>
   )
@@ -518,31 +560,54 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// New expense sheet
+// Expense sheet (new + edit)
 // ---------------------------------------------------------------------------
 
-function NewExpenseSheet({
+// Splits `amountCents` into `n` per-person dollar amounts; the first
+// `amountCents mod n` people get one extra cent so the parts sum exactly
+// to amountCents.
+function distributeCents(amountCents: number, n: number): number[] {
+  const base = Math.floor(amountCents / n)
+  const extras = amountCents - base * n
+  return Array.from({ length: n }, (_, i) =>
+    (i < extras ? base + 1 : base) / 100,
+  )
+}
+
+function ExpenseSheet({
   group,
   members,
   currentUserId,
+  existing,
   onClose,
-  onAdded,
+  onSaved,
 }: {
   group: Group
   members: GroupMember[]
   currentUserId: string
+  existing: ExpenseWithSplits | null
   onClose: () => void
-  onAdded: (expense: ExpenseWithSplits) => void
+  onSaved: (expense: ExpenseWithSplits) => void
 }) {
-  const initialPaidBy =
-    members.find((m) => m.user_id === currentUserId)?.user_id ??
-    members[0]?.user_id ??
-    ''
-  const [description, setDescription] = useState('')
-  const [amount, setAmount] = useState('')
+  const isEdit = existing !== null
+  const initialPaidBy = existing
+    ? existing.paid_by
+    : (members.find((m) => m.user_id === currentUserId)?.user_id ??
+      members[0]?.user_id ??
+      '')
+
+  const [description, setDescription] = useState(existing?.description ?? '')
+  const [amount, setAmount] = useState(
+    existing ? String(Number(existing.amount)) : '',
+  )
   const [paidBy, setPaidBy] = useState(initialPaidBy)
   const [splitBetween, setSplitBetween] = useState<Set<string>>(
-    () => new Set(members.map((m) => m.user_id)),
+    () =>
+      new Set(
+        existing
+          ? existing.splits.map((s) => s.user_id)
+          : members.map((m) => m.user_id),
+      ),
   )
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -581,11 +646,67 @@ function NewExpenseSheet({
     setSubmitting(true)
     setError(null)
 
-    const { data: expense, error: insertExpenseError } = await supabase
+    const totalCents = Math.round(amtNum * 100)
+    const shares = distributeCents(totalCents, ids.length)
+    const trimmed = description.trim()
+
+    if (existing) {
+      // --- Edit flow ---------------------------------------------------------
+      // Not atomic; the operations are sequential. If anything fails mid-way,
+      // the user can re-submit: UPDATE is idempotent, DELETE-with-no-rows is
+      // a no-op, and INSERT will refill what's missing.
+      const { error: updateError } = await supabase
+        .from('expenses')
+        .update({ description: trimmed, amount: amtNum, paid_by: paidBy })
+        .eq('id', existing.id)
+      if (updateError) {
+        setError(updateError.message)
+        setSubmitting(false)
+        return
+      }
+
+      const { error: deleteError } = await supabase
+        .from('expense_splits')
+        .delete()
+        .eq('expense_id', existing.id)
+      if (deleteError) {
+        setError(deleteError.message)
+        setSubmitting(false)
+        return
+      }
+
+      const splitRows = ids.map((userId, i) => ({
+        expense_id: existing.id,
+        user_id: userId,
+        share_amount: shares[i],
+      }))
+      const { data: newSplits, error: insertSplitsError } = await supabase
+        .from('expense_splits')
+        .insert(splitRows)
+        .select()
+      if (insertSplitsError || !newSplits) {
+        setError(insertSplitsError?.message ?? 'Could not save splits')
+        setSubmitting(false)
+        return
+      }
+
+      setSubmitting(false)
+      onSaved({
+        ...existing,
+        description: trimmed,
+        amount: amtNum,
+        paid_by: paidBy,
+        splits: newSplits,
+      })
+      return
+    }
+
+    // --- New flow ------------------------------------------------------------
+    const { data: inserted, error: insertExpenseError } = await supabase
       .from('expenses')
       .insert({
         group_id: group.id,
-        description: description.trim(),
+        description: trimmed,
         amount: amtNum,
         paid_by: paidBy,
         created_by: currentUserId,
@@ -593,40 +714,35 @@ function NewExpenseSheet({
       .select()
       .single()
 
-    if (insertExpenseError || !expense) {
+    if (insertExpenseError || !inserted) {
       setError(insertExpenseError?.message ?? 'Could not add expense')
       setSubmitting(false)
       return
     }
 
-    // Integer-cent split so shares sum exactly to the expense amount.
-    const totalCents = Math.round(amtNum * 100)
-    const base = Math.floor(totalCents / ids.length)
-    const extras = totalCents - base * ids.length
     const splitRows = ids.map((userId, i) => ({
-      expense_id: expense.id,
+      expense_id: inserted.id,
       user_id: userId,
-      share_amount: (i < extras ? base + 1 : base) / 100,
+      share_amount: shares[i],
     }))
-
     const { data: splits, error: splitsError } = await supabase
       .from('expense_splits')
       .insert(splitRows)
       .select()
 
     if (splitsError || !splits) {
-      await supabase.from('expenses').delete().eq('id', expense.id)
+      await supabase.from('expenses').delete().eq('id', inserted.id)
       setError(splitsError?.message ?? 'Could not save splits')
       setSubmitting(false)
       return
     }
 
     setSubmitting(false)
-    onAdded({ ...expense, splits })
+    onSaved({ ...inserted, splits })
   }
 
   return (
-    <Sheet title="New Expense" onClose={onClose}>
+    <Sheet title={isEdit ? 'Edit Expense' : 'New Expense'} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label
@@ -729,7 +845,13 @@ function NewExpenseSheet({
           disabled={submitting}
           className="w-full py-3 bg-brand text-white font-medium rounded-lg hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed transition min-h-[44px]"
         >
-          {submitting ? 'Adding…' : 'Add Expense'}
+          {submitting
+            ? isEdit
+              ? 'Saving…'
+              : 'Adding…'
+            : isEdit
+              ? 'Save Changes'
+              : 'Add Expense'}
         </button>
       </form>
     </Sheet>
