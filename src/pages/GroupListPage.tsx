@@ -5,6 +5,7 @@ import { useToast } from '../contexts/ToastContext'
 import { supabase } from '../lib/supabase'
 import Sheet from '../components/Sheet'
 import { CenteredSpinner } from '../components/Spinner'
+import { NicklWordmark } from '../components/Wordmark'
 import type { Group } from '../lib/database.types'
 
 type SheetMode = null | 'new' | 'join'
@@ -83,11 +84,11 @@ export default function GroupListPage({ onSelectGroup }: GroupListPageProps) {
   return (
     <main className="min-h-screen bg-app">
       <header className="px-4 pt-6 pb-4 max-w-[480px] mx-auto flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-brand">Nickl</h1>
+        <NicklWordmark size={28} />
         <button
           type="button"
           onClick={() => signOut()}
-          className="text-sm text-muted hover:text-gray-900 px-2 py-2 min-h-[44px]"
+          className="text-sm text-muted hover:text-ink px-2 py-2 min-h-[44px]"
         >
           Sign out
         </button>
@@ -105,7 +106,7 @@ export default function GroupListPage({ onSelectGroup }: GroupListPageProps) {
           <button
             type="button"
             onClick={() => setSheet('join')}
-            className="flex-1 py-3 bg-white border border-gray-200 text-brand font-medium rounded-xl hover:bg-gray-50 transition min-h-[44px]"
+            className="flex-1 py-3 bg-card border border-gray-200 text-brand font-medium rounded-xl hover:bg-gray-50 transition min-h-[44px]"
           >
             Join Group
           </button>
@@ -131,12 +132,12 @@ export default function GroupListPage({ onSelectGroup }: GroupListPageProps) {
                 <button
                   type="button"
                   onClick={() => onSelectGroup(group)}
-                  className="w-full text-left bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:border-brand/40 transition min-h-[64px]"
+                  className="w-full text-left bg-card rounded-xl border border-gray-100 shadow-sm p-4 hover:border-brand/40 transition min-h-[64px]"
                 >
-                  <div className="font-medium text-gray-900">{group.name}</div>
+                  <div className="font-medium text-ink">{group.name}</div>
                   <div className="mt-1 text-xs text-muted">
                     Invite code:{' '}
-                    <span className="font-mono tracking-wider text-gray-700">
+                    <span className="font-mono tabular tracking-wider text-ink">
                       {group.invite_code}
                     </span>
                   </div>
@@ -185,7 +186,7 @@ function EmptyGroups() {
           <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       </div>
-      <p className="text-base text-gray-900 mb-1">No groups yet</p>
+      <p className="text-base text-ink mb-1">No groups yet</p>
       <p className="text-sm">
         Start one, or join an existing group with an invite code.
       </p>

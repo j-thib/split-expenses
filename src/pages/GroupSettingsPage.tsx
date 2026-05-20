@@ -147,13 +147,13 @@ export default function GroupSettingsPage({
 
   return (
     <main className="min-h-screen bg-app pb-12">
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <header className="bg-card border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-[480px] mx-auto px-4 py-3 flex items-center gap-3">
           <button
             type="button"
             onClick={onBack}
             aria-label="Back"
-            className="w-11 h-11 -ml-2 flex items-center justify-center text-gray-700 hover:text-gray-900"
+            className="w-11 h-11 -ml-2 flex items-center justify-center text-gray-700 hover:text-ink"
           >
             <svg
               width="20"
@@ -169,7 +169,7 @@ export default function GroupSettingsPage({
               <path d="M12 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="flex-1 text-lg font-semibold text-gray-900 truncate">
+          <h1 className="flex-1 text-lg font-semibold text-ink truncate">
             Group settings
           </h1>
         </div>
@@ -208,7 +208,7 @@ export default function GroupSettingsPage({
                         setEditingGroupName(false)
                         setGroupNameDraft(group.name)
                       }}
-                      className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50"
+                      className="flex-1 py-3 bg-card border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50"
                     >
                       Cancel
                     </button>
@@ -222,8 +222,8 @@ export default function GroupSettingsPage({
                   </div>
                 </form>
               ) : (
-                <div className="flex items-center justify-between gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 min-h-[56px]">
-                  <span className="text-gray-900 truncate">{group.name}</span>
+                <div className="flex items-center justify-between gap-3 bg-card rounded-xl border border-gray-100 px-4 py-3 min-h-[56px]">
+                  <span className="text-ink truncate">{group.name}</span>
                   {isCreator && (
                     <button
                       type="button"
@@ -239,8 +239,8 @@ export default function GroupSettingsPage({
 
             {/* Invite code */}
             <Section title="Invite code" hint="Share this code so others can join.">
-              <div className="flex items-center justify-between gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 min-h-[56px]">
-                <span className="font-mono tracking-widest text-lg text-gray-900">
+              <div className="flex items-center justify-between gap-3 bg-card rounded-xl border border-gray-100 px-4 py-3 min-h-[56px]">
+                <span className="font-mono tabular tracking-widest text-lg text-ink">
                   {group.invite_code}
                 </span>
                 <button
@@ -287,7 +287,7 @@ export default function GroupSettingsPage({
                           setEditingDisplayName(false)
                           setDisplayNameDraft(me.display_name)
                         }}
-                        className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50"
+                        className="flex-1 py-3 bg-card border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50"
                       >
                         Cancel
                       </button>
@@ -301,8 +301,8 @@ export default function GroupSettingsPage({
                     </div>
                   </form>
                 ) : (
-                  <div className="flex items-center justify-between gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 min-h-[56px]">
-                    <span className="text-gray-900 truncate">
+                  <div className="flex items-center justify-between gap-3 bg-card rounded-xl border border-gray-100 px-4 py-3 min-h-[56px]">
+                    <span className="text-ink truncate">
                       {me.display_name}
                     </span>
                     <button
@@ -319,13 +319,13 @@ export default function GroupSettingsPage({
 
             {/* Members */}
             <Section title={`Members (${members.length})`}>
-              <ul className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100">
+              <ul className="bg-card rounded-xl border border-gray-100 divide-y divide-gray-100">
                 {members.map((m) => (
                   <li
                     key={m.id}
                     className="px-4 py-3 flex items-center justify-between min-h-[56px]"
                   >
-                    <span className="text-gray-900 truncate">
+                    <span className="text-ink truncate">
                       {m.display_name}
                     </span>
                     {m.user_id === user?.id && (
@@ -342,7 +342,7 @@ export default function GroupSettingsPage({
                 type="button"
                 onClick={handleLeave}
                 disabled={leaving}
-                className="w-full py-3 bg-white border border-red-200 text-red-700 font-medium rounded-lg hover:bg-red-50 disabled:opacity-60 min-h-[44px]"
+                className="w-full py-3 bg-card border border-red-200 text-red-700 font-medium rounded-lg hover:bg-red-50 disabled:opacity-60 min-h-[44px]"
               >
                 {leaving ? 'Leaving…' : 'Leave Group'}
               </button>

@@ -1,17 +1,30 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand: #2D6A4F;
-  --color-brand-dark: #245a42;
-  --color-app: #FAFAF8;
-  --color-muted: #8A8780;
-  --font-sans:
-    "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Brand */
+  --color-brand: #2F5D50;        /* Forest — primary actions, "owed to you" */
+  --color-brand-dark: #234A40;   /* Pressed / hover */
+  --color-accent: #C97B5B;       /* Clay — secondary, "you owe", highlights */
+  --color-accent-dark: #B0654A;
+
+  /* Surfaces */
+  --color-app: #F5F2EC;          /* Sand app background */
+  --color-card: #FAFAF8;         /* Card / sheet surface */
+  --color-ink: #1C1917;          /* Primary text */
+  --color-muted: #8A8780;        /* Secondary text */
+  --color-line: rgb(0 0 0 / 0.06); /* Hairlines */
+
+  /* Type */
+  --font-sans: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "DM Serif Display", "DM Sans", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-html,
-body {
+html, body {
   font-family: var(--font-sans);
   background-color: var(--color-app);
-  color: #08060d;
+  color: var(--color-ink);
 }
+
+/* Tabular numerals everywhere — money should never wiggle */
+.tabular { font-variant-numeric: tabular-nums; }

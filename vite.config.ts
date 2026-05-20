@@ -19,8 +19,8 @@ export default defineConfig({
         name: 'Nickl',
         short_name: 'Nickl',
         description: 'Split expenses with friends.',
-        theme_color: '#2D6A4F',
-        background_color: '#FAFAF8',
+        theme_color: '#2F5D50',
+        background_color: '#F5F2EC',
         display: 'standalone',
         start_url: '/',
         icons: [

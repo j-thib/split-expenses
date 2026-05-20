@@ -179,13 +179,13 @@ function Header({
   onOpenSettings: () => void
 }) {
   return (
-    <header className="bg-white border-b border-gray-100">
+    <header className="bg-card border-b border-gray-100">
       <div className="max-w-[480px] mx-auto px-4 py-2 flex items-center gap-2">
         <button
           type="button"
           onClick={onBack}
           aria-label="Back"
-          className="w-11 h-11 -ml-2 flex items-center justify-center text-gray-700 hover:text-gray-900"
+          className="w-11 h-11 -ml-2 flex items-center justify-center text-gray-700 hover:text-ink"
         >
           <svg
             width="20"
@@ -201,14 +201,14 @@ function Header({
             <path d="M12 19l-7-7 7-7" />
           </svg>
         </button>
-        <h1 className="flex-1 text-lg font-semibold text-gray-900 truncate">
+        <h1 className="flex-1 text-lg font-semibold text-ink truncate">
           {group.name}
         </h1>
         <button
           type="button"
           onClick={onOpenSettings}
           aria-label="Group settings"
-          className="w-11 h-11 -mr-2 flex items-center justify-center text-gray-700 hover:text-gray-900"
+          className="w-11 h-11 -mr-2 flex items-center justify-center text-gray-700 hover:text-ink"
         >
           <svg
             width="20"
@@ -237,7 +237,7 @@ function Tabs({
   setTab: (t: TabKey) => void
 }) {
   return (
-    <div className="bg-white border-b border-gray-100">
+    <div className="bg-card border-b border-gray-100">
       <div className="max-w-[480px] mx-auto flex">
         {(['expenses', 'settle'] as const).map((t) => (
           <button
@@ -247,7 +247,7 @@ function Tabs({
             className={`flex-1 min-h-[44px] py-3 text-sm font-medium border-b-2 transition ${
               tab === t
                 ? 'text-brand border-brand'
-                : 'text-muted border-transparent hover:text-gray-900'
+                : 'text-muted border-transparent hover:text-ink'
             }`}
           >
             {t === 'expenses' ? 'Expenses' : 'Settle Up'}
@@ -315,7 +315,7 @@ function EmptyExpenses() {
           <path d="M8 11h8M8 15h6" />
         </svg>
       </div>
-      <p className="text-base text-gray-900 mb-1">No expenses yet</p>
+      <p className="text-base text-ink mb-1">No expenses yet</p>
       <p className="text-sm">Tap the + button to add the first one.</p>
     </div>
   )
@@ -342,7 +342,7 @@ function ExpenseCard({
   const body = (
     <div className="flex items-start gap-3">
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-gray-900 truncate">
+        <div className="font-medium text-ink truncate">
           {expense.description}
         </div>
         <div className="mt-1 text-xs text-muted">
@@ -358,7 +358,7 @@ function ExpenseCard({
         )}
       </div>
       <div className="text-right shrink-0">
-        <div className="font-semibold text-gray-900">
+        <div className="font-mono tabular font-semibold text-ink">
           {formatUSD(Number(expense.amount))}
         </div>
         {isMine && (
@@ -377,7 +377,7 @@ function ExpenseCard({
     </div>
   )
 
-  const baseClass = 'bg-white rounded-xl border border-gray-100 shadow-sm p-4'
+  const baseClass = 'bg-card rounded-xl border border-gray-100 shadow-sm p-4'
 
   if (!isMine) {
     return <li className={baseClass}>{body}</li>
@@ -454,15 +454,15 @@ function SettleUpTab({
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted mb-2 px-1">
           Balances
         </h2>
-        <ul className="bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-100">
+        <ul className="bg-card rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-100">
           {members.map((m) => {
             const cents = balanceCents[m.user_id] ?? 0
             const dollars = Math.abs(cents) / 100
             const color =
               cents > 0
-                ? 'text-green-700'
+                ? 'text-brand'
                 : cents < 0
-                  ? 'text-red-600'
+                  ? 'text-accent'
                   : 'text-muted'
             const label =
               cents > 0 ? 'is owed' : cents < 0 ? 'owes' : 'is settled'
@@ -471,9 +471,12 @@ function SettleUpTab({
                 key={m.user_id}
                 className="px-4 py-3 flex items-center justify-between min-h-[48px]"
               >
-                <span className="text-gray-900">{m.display_name}</span>
+                <span className="text-ink">{m.display_name}</span>
                 <span className={`text-sm font-medium ${color}`}>
-                  {label} {formatUSD(dollars)}
+                  {label}{' '}
+                  <span className="font-mono tabular">
+                    {formatUSD(dollars)}
+                  </span>
                 </span>
               </li>
             )
@@ -492,9 +495,9 @@ function SettleUpTab({
             {transfers.map((t, i) => (
               <li
                 key={i}
-                className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex items-center gap-3"
+                className="bg-card rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex items-center gap-3"
               >
-                <span className="font-medium text-gray-900 truncate">
+                <span className="font-medium text-ink truncate">
                   {nameById[t.from] ?? t.from}
                 </span>
                 <svg
@@ -512,10 +515,10 @@ function SettleUpTab({
                   <path d="M5 12h14" />
                   <path d="M12 5l7 7-7 7" />
                 </svg>
-                <span className="flex-1 font-medium text-gray-900 truncate">
+                <span className="flex-1 font-medium text-ink truncate">
                   {nameById[t.to] ?? t.to}
                 </span>
-                <span className="font-semibold text-gray-900 shrink-0">
+                <span className="font-mono tabular font-semibold text-ink shrink-0">
                   {formatUSD(t.amount)}
                 </span>
               </li>
@@ -529,7 +532,7 @@ function SettleUpTab({
 
 function EmptyTransfers() {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
+    <div className="bg-card rounded-xl border border-gray-100 shadow-sm p-8 text-center">
       <div className="mx-auto mb-3 w-14 h-14 rounded-full bg-brand/10 flex items-center justify-center text-brand">
         <svg
           width="28"
@@ -545,16 +548,18 @@ function EmptyTransfers() {
           <path d="M5 13l4 4L19 7" />
         </svg>
       </div>
-      <p className="text-base text-gray-900">Everyone is already settled!</p>
+      <p className="text-base text-ink">Everyone is already settled!</p>
     </div>
   )
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
+    <div className="bg-card rounded-xl border border-gray-100 shadow-sm p-3">
       <div className="text-xs text-muted">{label}</div>
-      <div className="mt-1 font-semibold text-gray-900">{value}</div>
+      <div className="mt-1 font-mono tabular font-semibold text-ink">
+        {value}
+      </div>
     </div>
   )
 }
@@ -796,7 +801,7 @@ function ExpenseSheet({
             id="exp-paid-by"
             value={paidBy}
             onChange={(e) => setPaidBy(e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent bg-white"
+            className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent bg-card"
           >
             {members.map((m) => (
               <option key={m.user_id} value={m.user_id}>
@@ -821,7 +826,7 @@ function ExpenseSheet({
                   className={`px-3 py-2 rounded-full text-sm border transition min-h-[36px] ${
                     active
                       ? 'bg-brand text-white border-brand'
-                      : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                      : 'bg-card text-gray-700 border-gray-300 hover:border-gray-400'
                   }`}
                 >
                   {m.display_name}

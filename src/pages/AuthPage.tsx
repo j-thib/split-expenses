@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { NicklWordmark } from '../components/Wordmark'
 
 type Mode = 'signin' | 'signup'
 
@@ -46,22 +47,21 @@ export default function AuthPage() {
     <main className="min-h-screen flex items-center justify-center bg-app px-4 py-8">
       <div className="w-full max-w-[400px]">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-2" aria-hidden="true">
-            💸
+          <div className="inline-flex">
+            <NicklWordmark size={56} />
           </div>
-          <h1 className="text-3xl font-bold text-brand">Nickl</h1>
-          <p className="mt-1 text-sm text-muted">
-            Split expenses with friends.
+          <p className="mt-3 text-sm text-muted">
+            Split things, down to the cent.
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
           <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
             <button
               type="button"
               onClick={() => switchMode('signin')}
               className={`flex-1 py-2.5 text-sm font-medium rounded-md transition min-h-[44px] ${
-                isSignIn ? 'bg-white text-brand shadow-sm' : 'text-muted'
+                isSignIn ? 'bg-card text-brand shadow-sm' : 'text-muted'
               }`}
             >
               Sign in
@@ -70,7 +70,7 @@ export default function AuthPage() {
               type="button"
               onClick={() => switchMode('signup')}
               className={`flex-1 py-2.5 text-sm font-medium rounded-md transition min-h-[44px] ${
-                !isSignIn ? 'bg-white text-brand shadow-sm' : 'text-muted'
+                !isSignIn ? 'bg-card text-brand shadow-sm' : 'text-muted'
               }`}
             >
               Sign up

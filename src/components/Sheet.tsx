@@ -13,11 +13,11 @@ export default function Sheet({ title, onClose, children }: SheetProps) {
       onClick={onClose}
     >
       <div
-        className="w-full sm:w-[400px] sm:max-w-full bg-white rounded-t-2xl sm:rounded-2xl p-6 pb-8 max-h-[90vh] overflow-y-auto"
+        className="w-full sm:w-[400px] sm:max-w-full bg-card rounded-t-2xl sm:rounded-2xl p-6 pb-8 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+          <h2 className="text-lg font-semibold text-ink">{title}</h2>
           <button
             type="button"
             onClick={onClose}
