@@ -11,10 +11,11 @@ import type {
   ExpenseSplit,
   Group,
   GroupMember,
+  Payment,
 } from '../lib/database.types'
 
 type ExpenseWithSplits = Expense & { splits: ExpenseSplit[] }
-type TabKey = 'expenses' | 'settle'
+type TabKey = 'expenses' | 'payments' | 'settle'
 type SheetState =
   | { mode: 'new' }
   | { mode: 'edit'; expense: ExpenseWithSplits }
@@ -36,14 +37,16 @@ export default function GroupDetailPage({
   const [tab, setTab] = useState<TabKey>('expenses')
   const [members, setMembers] = useState<GroupMember[]>([])
   const [expenses, setExpenses] = useState<ExpenseWithSplits[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sheetState, setSheetState] = useState<SheetState>(null)
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const [membersRes, expensesRes] = await Promise.all([
+    const [membersRes, expensesRes, paymentsRes] = await Promise.all([
       supabase
         .from('group_members')
         .select('*')
@@ -52,6 +55,11 @@ export default function GroupDetailPage({
       supabase
         .from('expenses')
         .select('*, splits:expense_splits(*)')
+        .eq('group_id', group.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('payments')
+        .select('*')
         .eq('group_id', group.id)
         .order('created_at', { ascending: false }),
     ])
@@ -65,8 +73,14 @@ export default function GroupDetailPage({
       setLoading(false)
       return
     }
+    if (paymentsRes.error) {
+      setError(paymentsRes.error.message)
+      setLoading(false)
+      return
+    }
     setMembers(membersRes.data ?? [])
     setExpenses((expensesRes.data ?? []) as ExpenseWithSplits[])
+    setPayments(paymentsRes.data ?? [])
     setLoading(false)
   }, [group.id])
 
@@ -104,6 +118,25 @@ export default function GroupDetailPage({
     showToast(isEdit ? 'Expense updated' : 'Expense added')
   }
 
+  function handlePaymentSaved(payment: Payment) {
+    setPayments((prev) => [payment, ...prev])
+    setPaymentSheetOpen(false)
+    showToast('Payment recorded')
+  }
+
+  async function handleDeletePayment(paymentId: string) {
+    const { error: delError } = await supabase
+      .from('payments')
+      .delete()
+      .eq('id', paymentId)
+    if (delError) {
+      setError(delError.message)
+      return
+    }
+    setPayments((prev) => prev.filter((p) => p.id !== paymentId))
+    showToast('Payment deleted')
+  }
+
   return (
     <main className="min-h-screen bg-app pb-24">
       <div className="sticky top-0 z-10">
@@ -131,11 +164,20 @@ export default function GroupDetailPage({
             onEdit={(expense) => setSheetState({ mode: 'edit', expense })}
             onDelete={handleDelete}
           />
+        ) : tab === 'payments' ? (
+          <PaymentsTab
+            payments={payments}
+            nameById={nameById}
+            currentUserId={user?.id}
+            onDelete={handleDeletePayment}
+          />
         ) : (
           <SettleUpTab
             expenses={expenses}
+            payments={payments}
             members={members}
             nameById={nameById}
+            onRecordPayment={() => setPaymentSheetOpen(true)}
           />
         )}
       </div>
@@ -159,6 +201,16 @@ export default function GroupDetailPage({
           existing={sheetState.mode === 'edit' ? sheetState.expense : null}
           onClose={() => setSheetState(null)}
           onSaved={handleExpenseSaved}
+        />
+      )}
+
+      {paymentSheetOpen && (
+        <PaymentSheet
+          group={group}
+          members={members}
+          currentUserId={user?.id ?? ''}
+          onClose={() => setPaymentSheetOpen(false)}
+          onSaved={handlePaymentSaved}
         />
       )}
     </main>
@@ -236,10 +288,15 @@ function Tabs({
   tab: TabKey
   setTab: (t: TabKey) => void
 }) {
+  const labels: Record<TabKey, string> = {
+    expenses: 'Expenses',
+    payments: 'Payments',
+    settle: 'Settle Up',
+  }
   return (
     <div className="bg-card border-b border-gray-100">
       <div className="max-w-[480px] mx-auto flex">
-        {(['expenses', 'settle'] as const).map((t) => (
+        {(['expenses', 'payments', 'settle'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -250,7 +307,7 @@ function Tabs({
                 : 'text-muted border-transparent hover:text-ink'
             }`}
           >
-            {t === 'expenses' ? 'Expenses' : 'Settle Up'}
+            {labels[t]}
           </button>
         ))}
       </div>
@@ -404,21 +461,132 @@ function ExpenseCard({
 }
 
 // ---------------------------------------------------------------------------
+// Payments tab
+// ---------------------------------------------------------------------------
+
+function PaymentsTab({
+  payments,
+  nameById,
+  currentUserId,
+  onDelete,
+}: {
+  payments: Payment[]
+  nameById: Record<string, string>
+  currentUserId: string | undefined
+  onDelete: (id: string) => void
+}) {
+  if (payments.length === 0) {
+    return <EmptyPayments />
+  }
+
+  return (
+    <ul className="space-y-3">
+      {payments.map((p) => (
+        <PaymentCard
+          key={p.id}
+          payment={p}
+          nameById={nameById}
+          currentUserId={currentUserId}
+          onDelete={onDelete}
+        />
+      ))}
+    </ul>
+  )
+}
+
+function EmptyPayments() {
+  return (
+    <div className="text-center text-muted py-12 px-4">
+      <div className="mx-auto mb-3 w-14 h-14 rounded-full bg-brand/10 flex items-center justify-center text-brand">
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 7h18M3 12h18M3 17h18" />
+        </svg>
+      </div>
+      <p className="text-base text-ink mb-1">No payments yet</p>
+      <p className="text-sm">Record one from the Settle Up tab.</p>
+    </div>
+  )
+}
+
+function PaymentCard({
+  payment,
+  nameById,
+  currentUserId,
+  onDelete,
+}: {
+  payment: Payment
+  nameById: Record<string, string>
+  currentUserId: string | undefined
+  onDelete: (id: string) => void
+}) {
+  const isMine = payment.created_by === currentUserId
+  const fromName = nameById[payment.paid_by] ?? 'Unknown'
+  const toName = nameById[payment.paid_to] ?? 'Unknown'
+  const note = payment.note?.trim()
+
+  return (
+    <li className="bg-card rounded-xl border border-gray-100 shadow-sm p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-ink">
+            <span className="font-medium">{fromName}</span>
+            <span className="text-muted"> paid </span>
+            <span className="font-medium">{toName}</span>
+          </div>
+          {note && (
+            <div className="mt-1 text-xs text-muted truncate">{note}</div>
+          )}
+        </div>
+        <div className="text-right shrink-0">
+          <div className="font-mono tabular font-semibold text-ink">
+            {formatUSD(Number(payment.amount))}
+          </div>
+          {isMine && (
+            <button
+              type="button"
+              onClick={() => onDelete(payment.id)}
+              className="mt-1 text-xs text-red-600 hover:text-red-700 px-2 py-1"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+    </li>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Settle Up tab
 // ---------------------------------------------------------------------------
 
 function SettleUpTab({
   expenses,
+  payments,
   members,
   nameById,
+  onRecordPayment,
 }: {
   expenses: ExpenseWithSplits[]
+  payments: Payment[]
   members: GroupMember[]
   nameById: Record<string, string>
+  onRecordPayment: () => void
 }) {
   const { balanceCents, transfers, totalSpent } = useMemo(() => {
-    // Track balances only for current members. Expenses involving removed
-    // members may leave a residual that the settlement algorithm absorbs.
+    // Track balances only for current members. Expenses or payments involving
+    // removed members may leave a residual that the settlement algorithm
+    // absorbs.
     const memberIds = new Set(members.map((m) => m.user_id))
     const dollars: Record<string, number> = {}
     for (const m of members) dollars[m.user_id] = 0
@@ -432,18 +600,31 @@ function SettleUpTab({
           dollars[s.user_id] -= Number(s.share_amount)
       }
     }
+    for (const p of payments) {
+      const amt = Number(p.amount)
+      if (memberIds.has(p.paid_by)) dollars[p.paid_by] += amt
+      if (memberIds.has(p.paid_to)) dollars[p.paid_to] -= amt
+    }
     const settlement = greedyPairing(dollars)
     return {
       balanceCents: settlement.balances,
       transfers: settlement.transfers,
       totalSpent: total,
     }
-  }, [expenses, members])
+  }, [expenses, payments, members])
 
   const perPersonAvg = members.length > 0 ? totalSpent / members.length : 0
 
   return (
     <div className="space-y-6">
+      <button
+        type="button"
+        onClick={onRecordPayment}
+        className="w-full py-3 bg-brand text-white font-medium rounded-xl hover:bg-brand-dark transition min-h-[44px]"
+      >
+        Record Payment
+      </button>
+
       <div className="grid grid-cols-3 gap-3 text-center">
         <Stat label="Total spent" value={formatUSD(totalSpent)} />
         <Stat label="Per-person avg" value={formatUSD(perPersonAvg)} />
@@ -857,6 +1038,186 @@ function ExpenseSheet({
             : isEdit
               ? 'Save Changes'
               : 'Add Expense'}
+        </button>
+      </form>
+    </Sheet>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Payment sheet
+// ---------------------------------------------------------------------------
+
+function PaymentSheet({
+  group,
+  members,
+  currentUserId,
+  onClose,
+  onSaved,
+}: {
+  group: Group
+  members: GroupMember[]
+  currentUserId: string
+  onClose: () => void
+  onSaved: (payment: Payment) => void
+}) {
+  const initialFrom =
+    members.find((m) => m.user_id === currentUserId)?.user_id ??
+    members[0]?.user_id ??
+    ''
+  const initialTo =
+    members.find((m) => m.user_id !== initialFrom)?.user_id ?? ''
+
+  const [paidBy, setPaidBy] = useState(initialFrom)
+  const [paidTo, setPaidTo] = useState(initialTo)
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const amtNum = parseFloat(amount)
+
+    if (!paidBy || !paidTo) {
+      setError('Pick both people')
+      return
+    }
+    if (paidBy === paidTo) {
+      setError('From and To must be different')
+      return
+    }
+    if (!Number.isFinite(amtNum) || amtNum <= 0) {
+      setError('Enter an amount greater than 0')
+      return
+    }
+
+    setSubmitting(true)
+    setError(null)
+
+    const trimmedNote = note.trim()
+    const { data: inserted, error: insertError } = await supabase
+      .from('payments')
+      .insert({
+        group_id: group.id,
+        paid_by: paidBy,
+        paid_to: paidTo,
+        amount: amtNum,
+        note: trimmedNote ? trimmedNote : null,
+        created_by: currentUserId,
+      })
+      .select()
+      .single()
+
+    if (insertError || !inserted) {
+      setError(insertError?.message ?? 'Could not record payment')
+      setSubmitting(false)
+      return
+    }
+
+    setSubmitting(false)
+    onSaved(inserted)
+  }
+
+  return (
+    <Sheet title="Record Payment" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label
+            htmlFor="pay-from"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            From
+          </label>
+          <select
+            id="pay-from"
+            value={paidBy}
+            onChange={(e) => setPaidBy(e.target.value)}
+            className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent bg-card"
+          >
+            {members.map((m) => (
+              <option key={m.user_id} value={m.user_id}>
+                {m.display_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label
+            htmlFor="pay-to"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            To
+          </label>
+          <select
+            id="pay-to"
+            value={paidTo}
+            onChange={(e) => setPaidTo(e.target.value)}
+            className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent bg-card"
+          >
+            {members.map((m) => (
+              <option key={m.user_id} value={m.user_id}>
+                {m.display_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label
+            htmlFor="pay-amount"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Amount
+          </label>
+          <input
+            id="pay-amount"
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            required
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="pay-note"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Note <span className="text-muted font-normal">(optional)</span>
+          </label>
+          <input
+            id="pay-note"
+            type="text"
+            maxLength={200}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Venmo, cash, …"
+            className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+          />
+        </div>
+
+        {error && (
+          <div
+            role="alert"
+            className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2"
+          >
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full py-3 bg-brand text-white font-medium rounded-lg hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed transition min-h-[44px]"
+        >
+          {submitting ? 'Saving…' : 'Record Payment'}
         </button>
       </form>
     </Sheet>

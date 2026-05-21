@@ -48,6 +48,17 @@ create table if not exists public.expense_splits (
   share_amount numeric not null
 );
 
+create table if not exists public.payments (
+  id          uuid primary key default gen_random_uuid(),
+  group_id    uuid not null references public.groups (id) on delete cascade,
+  paid_by     uuid not null references auth.users (id),
+  paid_to     uuid not null references auth.users (id),
+  amount      numeric not null,
+  note        text,
+  created_by  uuid not null references auth.users (id),
+  created_at  timestamptz not null default now()
+);
+
 -- ----------------------------------------------------------------------------
 -- Indexes (FKs aren't auto-indexed by Postgres; these matter for our queries)
 -- ----------------------------------------------------------------------------
@@ -58,6 +69,9 @@ create index if not exists group_members_group_id_idx   on public.group_members 
 create index if not exists expenses_group_id_idx        on public.expenses (group_id);
 create index if not exists expense_splits_expense_id_idx on public.expense_splits (expense_id);
 create index if not exists expense_splits_user_id_idx   on public.expense_splits (user_id);
+create index if not exists payments_group_id_idx       on public.payments (group_id);
+create index if not exists payments_paid_by_idx        on public.payments (paid_by);
+create index if not exists payments_paid_to_idx        on public.payments (paid_to);
 
 -- ----------------------------------------------------------------------------
 -- Membership check: SECURITY DEFINER to break the RLS-recursion that would
@@ -90,6 +104,7 @@ alter table public.groups          enable row level security;
 alter table public.group_members   enable row level security;
 alter table public.expenses        enable row level security;
 alter table public.expense_splits  enable row level security;
+alter table public.payments        enable row level security;
 
 -- groups ---------------------------------------------------------------------
 drop policy if exists groups_select_members  on public.groups;
@@ -211,6 +226,29 @@ create policy expense_splits_delete_in_group on public.expense_splits
       where e.id = expense_id and public.is_group_member(e.group_id)
     )
   );
+
+-- payments -------------------------------------------------------------------
+drop policy if exists payments_select_in_group  on public.payments;
+drop policy if exists payments_insert_in_group  on public.payments;
+drop policy if exists payments_update_creator   on public.payments;
+drop policy if exists payments_delete_creator   on public.payments;
+
+create policy payments_select_in_group on public.payments
+  for select using (public.is_group_member(group_id));
+
+create policy payments_insert_in_group on public.payments
+  for insert with check (
+    public.is_group_member(group_id)
+    and created_by = auth.uid()
+  );
+
+create policy payments_update_creator on public.payments
+  for update
+    using (created_by = auth.uid() and public.is_group_member(group_id))
+    with check (created_by = auth.uid() and public.is_group_member(group_id));
+
+create policy payments_delete_creator on public.payments
+  for delete using (created_by = auth.uid());
 
 -- ----------------------------------------------------------------------------
 -- Join-by-invite RPC.

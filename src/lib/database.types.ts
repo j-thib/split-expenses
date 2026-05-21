@@ -128,6 +128,65 @@ export interface Database {
           },
         ]
       }
+      payments: {
+        Row: {
+          id: string
+          group_id: string
+          paid_by: string
+          paid_to: string
+          amount: number
+          note: string | null
+          created_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          paid_by: string
+          paid_to: string
+          amount: number
+          note?: string | null
+          created_by: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          paid_by?: string
+          paid_to?: string
+          amount?: number
+          note?: string | null
+          created_by?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'payments_group_id_fkey'
+            columns: ['group_id']
+            isOneToOne: false
+            referencedRelation: 'groups'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'payments_paid_by_fkey'
+            columns: ['paid_by']
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'payments_paid_to_fkey'
+            columns: ['paid_to']
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'payments_created_by_fkey'
+            columns: ['created_by']
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       expense_splits: {
         Row: {
           id: string
@@ -194,3 +253,4 @@ export type Group = Database['public']['Tables']['groups']['Row']
 export type GroupMember = Database['public']['Tables']['group_members']['Row']
 export type Expense = Database['public']['Tables']['expenses']['Row']
 export type ExpenseSplit = Database['public']['Tables']['expense_splits']['Row']
+export type Payment = Database['public']['Tables']['payments']['Row']
