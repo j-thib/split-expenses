@@ -66,6 +66,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signUp: async (email, password) => {
         const { data, error } = await supabase.auth.signUp({ email, password })
+        console.log('[signUp debug]', {
+          hasError: !!error,
+          errorMessage: error?.message,
+          hasUser: !!data.user,
+          hasSession: !!data.session,
+          identities: data.user?.identities,
+          identitiesLength: data.user?.identities?.length,
+          confirmedAt: data.user?.confirmed_at,
+          emailConfirmedAt: data.user?.email_confirmed_at,
+          createdAt: data.user?.created_at,
+          userMetadata: data.user?.user_metadata,
+        })
         const identities = data.user?.identities
         const emailAlreadyInUse =
           !error && data.user != null && (identities == null || identities.length === 0)
