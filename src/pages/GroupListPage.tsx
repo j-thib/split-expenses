@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { supabase } from '../lib/supabase'
@@ -10,6 +11,7 @@ import InstallBanner from '../components/InstallBanner'
 import type { Group } from '../lib/database.types'
 
 type SheetMode = null | 'new' | 'join'
+type PendingMembership = { group: Group; action: 'join' | 'create' }
 
 // Omits ambiguous chars (0/O, 1/I/L) so codes are easier to share verbally.
 const INVITE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -20,6 +22,16 @@ function generateInviteCode(): string {
     out[i] = INVITE_ALPHABET[Math.floor(Math.random() * INVITE_ALPHABET.length)]
   }
   return out.join('')
+}
+
+function getDefaultDisplayName(user: User): string {
+  const metaName = user.user_metadata?.display_name
+  if (typeof metaName === 'string' && metaName.trim()) {
+    return metaName.trim()
+  }
+  const email = user.email ?? ''
+  const at = email.indexOf('@')
+  return at > 0 ? email.slice(0, at) : email
 }
 
 type GroupListPageProps = {
@@ -33,6 +45,8 @@ export default function GroupListPage({ onSelectGroup }: GroupListPageProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sheet, setSheet] = useState<SheetMode>(null)
+  const [pendingMembership, setPendingMembership] =
+    useState<PendingMembership | null>(null)
 
   const loadGroups = useCallback(async () => {
     if (!user) return
@@ -70,7 +84,7 @@ export default function GroupListPage({ onSelectGroup }: GroupListPageProps) {
       prev.some((g) => g.id === group.id) ? prev : [group, ...prev],
     )
     showToast('Group created')
-    onSelectGroup(group)
+    setPendingMembership({ group, action: 'create' })
   }
 
   function handleJoined(group: Group) {
@@ -79,6 +93,11 @@ export default function GroupListPage({ onSelectGroup }: GroupListPageProps) {
       prev.some((g) => g.id === group.id) ? prev : [group, ...prev],
     )
     showToast('Joined group')
+    setPendingMembership({ group, action: 'join' })
+  }
+
+  function finishMembership(group: Group) {
+    setPendingMembership(null)
     onSelectGroup(group)
   }
 
@@ -163,6 +182,14 @@ export default function GroupListPage({ onSelectGroup }: GroupListPageProps) {
         />
       )}
 
+      {pendingMembership && (
+        <DisplayNameSheet
+          group={pendingMembership.group}
+          action={pendingMembership.action}
+          onDone={finishMembership}
+        />
+      )}
+
       <InstallBanner />
     </main>
   )
@@ -241,7 +268,7 @@ function NewGroupSheet({
       .insert({
         group_id: group.id,
         user_id: user.id,
-        display_name: user.email ?? 'Member',
+        display_name: getDefaultDisplayName(user),
       })
 
     if (memberError) {
@@ -306,6 +333,7 @@ function JoinGroupSheet({
   onClose: () => void
   onJoined: (group: Group) => void
 }) {
+  const { user } = useAuth()
   const [code, setCode] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -320,7 +348,10 @@ function JoinGroupSheet({
 
     const { data, error: rpcError } = await supabase.rpc(
       'join_group_by_invite',
-      { invite: trimmed },
+      {
+        invite: trimmed,
+        member_display_name: user ? getDefaultDisplayName(user) : null,
+      },
     )
 
     if (rpcError || !data) {
@@ -374,6 +405,96 @@ function JoinGroupSheet({
           className="w-full py-3 bg-brand text-white font-medium rounded-lg hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed transition min-h-[44px]"
         >
           {submitting ? 'Joining…' : 'Join group'}
+        </button>
+      </form>
+    </Sheet>
+  )
+}
+
+function DisplayNameSheet({
+  group,
+  action,
+  onDone,
+}: {
+  group: Group
+  action: 'join' | 'create'
+  onDone: (group: Group) => void
+}) {
+  const { user } = useAuth()
+  const [name, setName] = useState(user ? getDefaultDisplayName(user) : '')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const title =
+    action === 'join'
+      ? 'What should people call you in this group?'
+      : 'What should people call you?'
+  const buttonLabel = action === 'join' ? 'Join' : 'Continue'
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!user) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+
+    setSubmitting(true)
+    setError(null)
+
+    const { error: updateError } = await supabase
+      .from('group_members')
+      .update({ display_name: trimmed })
+      .eq('group_id', group.id)
+      .eq('user_id', user.id)
+
+    if (updateError) {
+      setError(updateError.message)
+      setSubmitting(false)
+      return
+    }
+
+    await supabase.auth.updateUser({ data: { display_name: trimmed } })
+
+    setSubmitting(false)
+    onDone(group)
+  }
+
+  return (
+    <Sheet title={title} onClose={() => onDone(group)}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label
+            htmlFor="display-name"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Your name
+          </label>
+          <input
+            id="display-name"
+            type="text"
+            autoFocus
+            required
+            maxLength={80}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+          />
+        </div>
+
+        {error && (
+          <div
+            role="alert"
+            className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2"
+          >
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting || !name.trim()}
+          className="w-full py-3 bg-brand text-white font-medium rounded-lg hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed transition min-h-[44px]"
+        >
+          {submitting ? 'Saving…' : buttonLabel}
         </button>
       </form>
     </Sheet>
