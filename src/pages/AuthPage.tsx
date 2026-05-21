@@ -12,32 +12,48 @@ export default function AuthPage() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [emailTakenError, setEmailTakenError] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
+    setEmailTakenError(false)
     setMessage(null)
     setSubmitting(true)
 
-    const action = mode === 'signin' ? signIn : signUp
-    const { error: authError } = await action(email.trim(), password)
+    if (mode === 'signin') {
+      const { error: authError } = await signIn(email.trim(), password)
+      setSubmitting(false)
+      if (authError) {
+        setError(authError.message)
+      }
+      return
+    }
 
+    const { error: authError, emailAlreadyInUse } = await signUp(
+      email.trim(),
+      password,
+    )
     setSubmitting(false)
+
+    if (emailAlreadyInUse) {
+      setEmailTakenError(true)
+      return
+    }
 
     if (authError) {
       setError(authError.message)
       return
     }
 
-    if (mode === 'signup') {
-      setMessage('Check your email to confirm your account.')
-    }
+    setMessage('Check your email to confirm your account.')
   }
 
   function switchMode(next: Mode) {
     setMode(next)
     setError(null)
+    setEmailTakenError(false)
     setMessage(null)
   }
 
@@ -112,6 +128,23 @@ export default function AuthPage() {
                 className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
               />
             </div>
+
+            {emailTakenError && (
+              <div
+                role="alert"
+                className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2"
+              >
+                An account with this email already exists. Try{' '}
+                <button
+                  type="button"
+                  onClick={() => switchMode('signin')}
+                  className="underline font-medium hover:text-red-800"
+                >
+                  signing in
+                </button>{' '}
+                instead.
+              </div>
+            )}
 
             {error && (
               <div

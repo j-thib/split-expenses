@@ -10,13 +10,14 @@ import type { AuthError, Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
 type AuthResult = { error: AuthError | null }
+type SignUpResult = AuthResult & { emailAlreadyInUse: boolean }
 
 type AuthContextValue = {
   user: User | null
   session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<AuthResult>
-  signUp: (email: string, password: string) => Promise<AuthResult>
+  signUp: (email: string, password: string) => Promise<SignUpResult>
   signOut: () => Promise<AuthResult>
 }
 
@@ -64,8 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error }
       },
       signUp: async (email, password) => {
-        const { error } = await supabase.auth.signUp({ email, password })
-        return { error }
+        const { data, error } = await supabase.auth.signUp({ email, password })
+        const identities = data.user?.identities
+        const emailAlreadyInUse =
+          !error && data.user != null && (identities == null || identities.length === 0)
+        return { error, emailAlreadyInUse }
       },
       signOut: async () => {
         const { error } = await supabase.auth.signOut()
